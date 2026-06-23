@@ -135,7 +135,7 @@ class ROSClient(object):
         self.task_listener.subscribe(self.task_listen_callback)
         self.motion_listener = roslibpy.Topic(self.client, "/motion_control/sub_task_result", 'motion_control/SubTaskResult')
         self.motion_listener.subscribe(self.grub_listen_callback)
-        self.map_service = roslibpy.Service(self.client, '/dynamic_map', 'nav_msgs/GetMap')
+        self.map_service = roslibpy.Service(self.client, '/save_map', 'robot_core/SaveMap')
 
         self.current_pose = None
         self.subscriber = roslibpy.Topic(
@@ -332,10 +332,17 @@ class ROSClient(object):
                     tem[width - 1 - i, j] = 255 - (m[i, j] * 2)
         cv2.imwrite("./{}.png".format(name), tem)
 
-    def upload_map(self, name):
-        #TODO
-        return 0
-
+    def trigger_save_map(self, map_name):
+        if not self.client.is_connected:
+            raise Exception("ROS not connected")
+        
+        # 等待服务可用
+        service = self.map_service
+        request = roslibpy.ServiceRequest({'map_name': map_name})
+        
+        # 同步调用（会阻塞，可设置超时）
+        response = service.call(request)
+        return response
 
 
 def ctrl_template() -> dict:

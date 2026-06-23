@@ -16,7 +16,7 @@ from app0.util import response_wrapper, success_api_response, failed_api_respons
     parse_data
 
 
-import subprocess
+
 from pathlib import Path
 import cv2
 import roslibpy
@@ -131,36 +131,6 @@ def ros_free(request: HttpRequest):
 
 """==========================================  Mapping  ==============================================="""
 
-@require_GET
-@response_wrapper
-@require_ros
-def mapping_start(request: HttpRequest):
-    """
-    [GET] /api/mapping/start
-    """
-    ros_client = ROSClient()
-    try:
-        subprocess.run(["roslaunch", "robot_mapping", "gmapping.launch"],
-                       check=True, capture_output=True, timeout=30)
-    except Exception as exc:
-        return failed_api_response(ErrorCode.ROS_CONNECT_FAILED, f"map_ 执行失败: {exc}")
-    
-    ros_client.start_pose_printer(interval=1.0)
-
-    return success_api_response({"msg": "建图已启动"})
-
-
-@require_GET
-@response_wrapper
-@require_ros
-def mapping_end(request: HttpRequest):
-    """
-    [GET] /api/mapping/end
-    """
-    return failed_api_response(ErrorCode.ROS_CONNECT_FAILED, "ROS控制服务未就绪，建图启停暂不可用")
-
-# 目前由手柄控制接管mapping过程
-
 @csrf_exempt
 @require_POST
 @response_wrapper
@@ -180,97 +150,36 @@ def mapping_save(request: HttpRequest):
         return failed_api_response(ErrorCode.INVALID_REQUEST_ARGUMENT_ERROR, "地图名称重复")
     if not check_connect():
         return failed_api_response(ErrorCode.ROS_CONNECT_FAILED, "ROS未连接，无法保存地图")
-    maps_dir = Path("~/ros_server/maps").expanduser()
-    maps_dir.mkdir(parents=True, exist_ok=True)
+    
+    ros = ROSClient()
+    ros.trigger_save_map(name)
+
+    return success_api_response({"msg": "ROS开始上传地图"})
+
+@csrf_exempt
+@response_wrapper
+@require_GET
+def map_image(request: HttpRequest, map_id: int):
+    """
+    [GET] /api/maps/<map_id>/image/
+    返回地图的PNG图片数据，用于前端<img>渲染。
+    由于带宽不太够，这个不能频繁调用，前端要做缓存
+    """
     try:
-        subprocess.run(["rosrun", "map_server", "map_saver", "-f", str(maps_dir / name)+"map"],
-                       check=True, capture_output=True, timeout=30)
-    except Exception as exc:
-        return failed_api_response(ErrorCode.ROS_CONNECT_FAILED, f"map_saver 执行失败: {exc}")
-    pgm = maps_dir / f"{name}map.pgm"
-    png = maps_dir / f"{name}map.png"
-    yml = maps_dir / f"{name}map.yaml"
-    img = cv2.imread(str(pgm), cv2.IMREAD_UNCHANGED)
-    if img is not None:
-        cv2.imwrite(str(png), img)
-    m = Map.objects.create(map_name=name, map_file_path=str(png), annotation_file_path=str(yml))
+        map_obj = Map.objects.get(map_id=map_id)
+    except Map.DoesNotExist:
+        return failed_api_response(ErrorCode.INVALID_REQUEST_ARGUMENT_ERROR, "地图不存在")
 
+    img_path = map_obj.map_file_path
+    if not img_path or not os.path.exists(img_path):
+        return failed_api_response(ErrorCode.INVALID_REQUEST_ARGUMENT_ERROR, "图片资源不存在")
 
-    
-    return success_api_response({"map_id": m.map_id, "map_name": name})
+    # 读取图片二进制
+    with open(img_path, 'rb') as f:
+        image_data = f.read()
 
-@csrf_exempt
-@require_POST
-@response_wrapper
-@require_ros
-def waypoints_start(request: HttpRequest):
-    """
-    [POST] /api/waypoints/start
-    body: JSON {name: string}
-    """
-    data = parse_data(request)
-    if not data or "name" not in data:
-        return failed_api_response(ErrorCode.BAD_REQUEST_ERROR, "缺少 name 字段")
-    name = str(data["name"]).strip()
-    # waypoints
-    waypoints_dir = Path("~/ros_server/waypoints").expanduser()
-    waypoints_dir.mkdir(parents=True, exist_ok=True)
-    xml_path = waypoints_dir / f"{name}waypoints.xml"
-    maps_dir = Path("~/ros_server/maps").expanduser()
-    subprocess.run(["robot_navigation", "waypoint_nav.launch", "map_file:="+maps_dir+f"/{name}map.yaml", "waypoint_file:="+xml_path],
-                check=True, capture_output=True, timeout=30)
-    
-    return success_api_response()
-
-@csrf_exempt
-@require_POST
-@response_wrapper
-@require_ros
-def waypoints_save(request: HttpRequest):
-    """
-    [POST] /api/waypoints/save
-    body: JSON {name: string, map_id: int}
-    """
-    data = parse_data(request)
-    if not data or "name" not in data:
-        return failed_api_response(ErrorCode.BAD_REQUEST_ERROR, "缺少 name 字段")
-    name = str(data["name"]).strip()
-    map_id = data["map_id"]
-    waypoints_dir = Path("~/ros_server/waypoints").expanduser()
-    xml_path = waypoints_dir / f"{name}waypoints.xml"
-
-    subprocess.run(["rosrun", "waterplus_map_tools", "wp_saver", "-f", "waypoint_file:="+xml_path])
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-    waypoints_to_create = []
-    for wp_elem in root.findall('Waypoint'):
-        name_elem = wp_elem.find('Name')
-        if name_elem is None or not name_elem.text:
-            continue
-        waypoint_name = name_elem.text.strip()
-        pos_x = float(wp_elem.find('Pos_x').text) if wp_elem.find('Pos_x') is not None else 0.0
-        pos_y = float(wp_elem.find('Pos_y').text) if wp_elem.find('Pos_y') is not None else 0.0
-        pos_z = float(wp_elem.find('Pos_z').text) if wp_elem.find('Pos_z') is not None else 0.0
-        ori = float(wp_elem.find('Ori_z').text) if wp_elem.find('Ori_z') is not None else 0.0
-        m = Map.objects.get(map_id=map_id)
-        waypoints_to_create.append(
-            WayPoint(
-                map=m,
-                waypoint_name=waypoint_name,
-                waypoint_type=WayPoint.PICKUP,   # 默认取货点
-                cargo_type=None,                 # 不设置货物类型
-                px=pos_x,
-                py=pos_y,
-                pz=pos_z,
-                orientation=ori,
-            )
-        )
-    if waypoints_to_create:
-        WayPoint.objects.bulk_create(waypoints_to_create)
-    ros_client = ROSClient()
-    ros_client.map_id = m.map_id
-    ros_client.stop_pose_printer()
-    return success_api_response()
+    # 返回PNG图片
+    return success_api_response({"data": image_data})
 
 """==========================================  Navigating  ==============================================="""
 
@@ -476,10 +385,9 @@ def emergency_stop(request: HttpRequest):
 @response_wrapper
 @require_ros
 def renew(request: HttpRequest):
-    
+
     target_dir = Path("~/ros_server").expanduser()
     shutil.rmtree(target_dir)
-
 
     try:
         call_command('flush', interactive=False, verbosity=0)

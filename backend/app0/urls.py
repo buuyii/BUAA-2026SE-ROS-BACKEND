@@ -2,12 +2,11 @@ from django.urls import path
 from app0.views import test
 from app0.api import file as file_api, map as map_api, note as note_api
 from app0.api.ros import (ros_connect, get_ros_connect_status, ros_free,
-    mapping_start, mapping_end, mapping_save,
+    mapping_save,
     navigation_to, navigation_stop,
     navigation_map_list, navigation_point_list,
     task_start, task_info, grabbing_start,
     get_mode, emergency_stop, get_pose,
-    waypoints_start, waypoints_save,
     renew)
 
 urlpatterns = [
@@ -15,7 +14,7 @@ urlpatterns = [
     path("test", test),
 
     # map_upload
-    path('file/upload/', file_api.upload_file, name='upload_file'),
+    path('file/upload/', file_api.upload_map_from_ros, name='upload_file'),
 
     # ros connect
     path("ros/connect", ros_connect),
@@ -23,12 +22,8 @@ urlpatterns = [
     path("ros/free", ros_free),
 
     # mapping
-    path("mapping/start", mapping_start),
-    path("mapping/end", mapping_end),
     path("mapping/save", mapping_save),
 
-    path("waypoints/start",waypoints_start),
-    path("waypoints/save",waypoints_save),
 
     # navigating
     path("navigation/to/<int:query_id>", navigation_to),
