@@ -2,7 +2,7 @@ from django.urls import path
 from app0.views import test
 from app0.api import file as file_api, map as map_api, note as note_api
 from app0.api.ros import (ros_connect, get_ros_connect_status, ros_free,
-    mapping_save,
+    mapping_save, map_image, get_ros_map_list,
     navigation_to, navigation_stop,
     navigation_map_list, navigation_point_list,
     task_start, task_info, grabbing_start,
@@ -23,7 +23,8 @@ urlpatterns = [
 
     # mapping
     path("mapping/save", mapping_save),
-
+    path("maps/ros_map_list", get_ros_map_list),
+    path("maps/<map_id>/image", map_image),
 
     # navigating
     path("navigation/to/<int:query_id>", navigation_to),

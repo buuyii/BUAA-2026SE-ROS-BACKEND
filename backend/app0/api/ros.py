@@ -130,6 +130,20 @@ def ros_free(request: HttpRequest):
 
 
 """==========================================  Mapping  ==============================================="""
+@require_GET
+@response_wrapper
+@require_ros
+def get_ros_map_list(request: HttpRequest):
+    """
+    [GET] /api/maps/ros_map_list/
+    调用 ROS 服务获取服务器本地已保存的地图名称列表。
+    """
+    ros_client = ROSClient()
+    try:
+        map_names = ros_client.get_map_list()
+        return success_api_response({"map_names": map_names})
+    except Exception as e:
+        return failed_api_response(ErrorCode.ROS_CONNECT_FAILED, f"获取地图列表失败: {str(e)}")
 
 @csrf_exempt
 @require_POST

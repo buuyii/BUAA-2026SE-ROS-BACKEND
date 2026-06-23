@@ -343,6 +343,21 @@ class ROSClient(object):
         # 同步调用（会阻塞，可设置超时）
         response = service.call(request)
         return response
+    
+    def get_map_list(self):
+        """
+        通过 ROS 服务 /get_map_list 获取服务器上已保存的地图名称列表。
+        :return: list of map names (strings)
+        :raises: 连接异常或服务调用失败
+        """
+        if not self.is_connect:
+            raise RuntimeError("ROS client not connected")
+
+        service = roslibpy.Service(self.client, '/get_map_list', 'robot_core/GetMapList')
+        request = roslibpy.ServiceRequest({})  # 无参数
+        response = service.call(request)
+        # 响应应为 {'map_names': ['map1', 'map2', ...]}
+        return response.get('map_names', [])
 
 
 def ctrl_template() -> dict:
