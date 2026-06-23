@@ -1,0 +1,17 @@
+Debug: false # Set to true for development
+
+# Mysql
+DatabaseHost: 127.0.0.1
+DatabasePort: 3306
+DatabaseUser: akuouka
+DatabasePassword: 
+DatabaseName: ros
+
+# Django specific
+DjangoSecretKey: django-insecure-_e2%j=n0*e8l(n36mtoll8d=%5)9^lep@be895vnyeh27g+%(y
+
+# Ros
+ROSHost: 127.0.0.1
+ROSPort: 9090
+
+

@@ -1,0 +1,21 @@
+# backend config
+/backend/config.yaml
+
+.vscode/
+
+# qcreator stuff
+CMakeLists.txt.user
+
+srv/_*.py
+*.pcd
+*.pyc
+qtcreator-*
+*.user
+
+/planning/cfg
+/planning/docs
+/planning/src
+
+*~
+build/
+devel/
